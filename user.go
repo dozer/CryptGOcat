@@ -2,6 +2,7 @@ package main
 
 import (
   //"io"
+  "log"
   "errors"
   "strings"
   "os"
@@ -13,30 +14,72 @@ import (
 
 //User is a basic user including his name and config file.
 type User struct {
-  Config    *conf.ConfigFile
-  UserName  string
-  authed    bool
+  Config      *conf.ConfigFile
+  ConfigPath  string
+  UserName    string
+  password    string
+  BuddyList   map[string]string
+  authed      bool
 }
 
 //GetUser returns a user from the config or creates one if none exists
 func GetUser(path string) (user *User, err error) {
+  log.Println("user.go:GetUser:", "Getting new user")
+
   user = &User{}
+  user.password = AskUserString("please enter a password"
+  user.ConfigPath = path
+  user.BuddyList = make(map[string]string)
   user.Config, err = OpenConfig(path)
   if err != nil { return nil, err }
-  if !user.Config.AddSection("user") {
-    //Asks to make the user
+
+  if user.Config.AddSection("user") {
+    log.Println("user.go:GetUser:", "No Section \"user\" found, adding...")
     if !AskUserBool("No user found, add new user?") { return nil, errors.New("Can't continue without user") }
     user.UserName = "CryptGoCatUsr1"
     exists := user.Config.AddOption("user", "user_name", user.UserName)
-    //This should never run ever
-    if exists {
-      return nil, errors.New("Key exists but section does not")
-    } else {
-      user.UserName, err = user.Config.GetString("user", "user_name")
-      if err != nil { return nil, err }
-    }
+    log.Println("user.go:GetUser:", "Adding option \"user_name\"")
+    if !exists { return nil, errors.New("Key exists but section does not") }
+  } else {
+    log.Println("user.go:GetUser:", "Section \"user\" found")
+    log.Println("user.go:GetUser:", "Getting option \"user_name\"")
+    user.UserName, err = user.Config.GetString("user", "user_name")
+    if err != nil { return nil, err }
+  }
+
+  if user.Config.AddSection("buddies") {
+    log.Println("user.go:GetUser:", "No Section \"buddies\" found, adding...")
+  } else {
+    log.Println("user.go:GetUser:", "Section \"user\" found")
+    log.Println("user.go:GetUser:", "Getting buddyList")
+    user.GetBuddies()
+    if err != nil { return nil, err }
   }
   return
+}
+
+//GetBuddies looks through the section "buddies" in the config file
+// and creates a hash map of aliases/buddies
+func (user *User) GetBuddies() error {
+  buddies, err := user.Config.GetOptions()
+  if err != nil { return err }
+  for _, address := range buddies {
+    user.BuddyList[address], err  = user.Config.GetOption("buddies", address)
+    if err != nil { return err }
+  }
+  return
+}
+
+//SaveUser saves the current user to the config path with permissions 0655
+func (user *User) SaveUser() error {
+  //user.saveStruct()
+  return user.Config.WriteConfigFile(user.ConfigPath, 0655, "User config for CryptGOcat")
+}
+
+//TODO - Save other items in struct
+//SetName sets the UserName for the given user
+func (user *User) saveStruct() error {
+  user.Config.AddOption("user", "user_name", user.UserName)
 }
 
 //OpenConfig opens a config from a path and creates one along with
@@ -74,12 +117,18 @@ func AddConfig(path string) (config *conf.ConfigFile, err error) {
   return config, nil
 }
 
-/*
-func not_main() {
+func GetKeyVault(path string) {
+  if !Exists(path) {
+    setupNewKeyVault()
+    return
+  }
+}
+
+func SetupKeyVault() {
   newKey, correct := strongbox.GenerateKey()
   fmt.Println(correct)
   hash := sha512.New()
-  io.WriteString(hash, "The fog is getting thicker!")
+  io.WriteString(hash, )
   shasum := hash.Sum(nil)
   var vaultKey [144]byte
   for index, curByte := range shasum {
