@@ -23,6 +23,7 @@ var inputWindow *goncurses.Window
 type NullWriter int
 func (NullWriter) Write([]byte) (int, error) { return 0, nil }
 
+//main sets up a new server/client and will start a curses session while hiding the logger
 func main() {
 	addr := flag.String("addr", "", "Listening address")
 	port := flag.String("port", "8000", "Listening port")
@@ -79,6 +80,8 @@ func main() {
 	s.CreateServer()
 }
 
+//readInput reads user input and connects or starte encryption based
+// on '/CONNECT [ADDR]' or '/ENCRYPT'
 func readInput() {
 	for {
 		var response string
@@ -124,6 +127,22 @@ func readInput() {
   }
 }
 
+//serverRec recieves a message from a client an either ignores it for its
+// current connection, starts a new one, or throws it to the reciever
+func serverRec(tls *tls.Conn, msg string) {
+  if connection == 1 || (connection == 2 && tls != tlscon){
+    chatWindow.ColorOn(1)
+    chatWindow.Println("Already connected on the client & getting attempts from server")
+  } else if connection == 2 && tlscon == tls {
+    recMsg(msg)
+  } else if connection == 0 {
+    tlscon = tls
+    connection = 2
+    recMsg(msg)
+  }
+}
+
+//clientRec does the same as serverRec but from the client side 
 func clientRec(msg string) {
   if connection == 2 {
     chatWindow.ColorOn(1)
@@ -138,19 +157,8 @@ func clientRec(msg string) {
   inputWindow.Refresh()
 }
 
-func serverRec(tls *tls.Conn, msg string) {
-  if connection == 1 || (connection == 2 && tls != tlscon){
-    chatWindow.ColorOn(1)
-    chatWindow.Println("Already connected on the client & getting attempts from server")
-  } else if connection == 2 && tlscon == tls {
-    recMsg(msg)
-  } else if connection == 0 {
-    tlscon = tls
-    connection = 2
-    recMsg(msg)
-  }
-}
-
+//recMsg recieves messages from the connection and relays a pingpong or sets up
+// otr encryption
 func recMsg(msg string) {
   message := strings.Split(msg, " ")
   switch message[0] {
@@ -178,6 +186,7 @@ func recMsg(msg string) {
   chatWindow.Refresh()
 }
 
+//encrypt start otr encryption based on the otr query
 func encrypt(msg string) {
   _, _, _, toSend, err := conv.Receive([]byte(msg))
   if err != nil {
@@ -190,6 +199,7 @@ func encrypt(msg string) {
   }
 }
 
+//sendMsg sends a single message to the current connection
 func sendMsg(msg []byte) {
   if connection == 0 {
     chatWindow.ColorOn(1)
@@ -202,10 +212,7 @@ func sendMsg(msg []byte) {
   }
 }
 
+//sendMsgs sends multipule messages to the current connection
 func sendMsgs(msgs [][]byte) {
   for _, toSend := range msgs { sendMsg(toSend) }
-}
-
-func changeSec(secChange otr.SecurityChange) {
-  return
 }
