@@ -19,5 +19,5 @@ or
 ###Connect
 `/CONNECT [ip:port]`
 
-##Encrypt
+###Encrypt
 `/ENCRYPT`
